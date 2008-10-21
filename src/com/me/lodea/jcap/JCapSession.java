@@ -15,7 +15,6 @@ import com.me.lodea.io.NullStreamEditor;
 import java.net.NetworkInterface;
 import java.util.Collection;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.io.*;
 
 
@@ -95,15 +94,17 @@ public final class JCapSession
     }
 
     /**
-     * Stores a native pointer to native code state.
+     * Stores a native pointer to native code state. Accessed only from
+     * native code.
      */
+    @SuppressWarnings({"UnusedDeclaration"})
     private long nativePointer;
 
     private final NetworkInterface iface;
     private final int snaplen;
     private final boolean promisc;
     private final int timeout;
-    private final Collection listeners = new ArrayList(5);
+    private final Collection<PacketListener> listeners = new ArrayList<PacketListener>(5);
     private final File dumpFile;
     private final boolean tmpDumpFile;
 
@@ -140,11 +141,18 @@ public final class JCapSession
 
     public native int capture(final int maxPackets);
 
+    /**
+     * Fire a {@code PacketEvent} to all listeners. This is only called by
+     * native code.
+     *
+     * @param event The event to fire.
+     */
+    @SuppressWarnings({"UnusedDeclaration"})
     private void firePacketEvent(final PacketEvent event)
     {
-        for (final Iterator iter = listeners.iterator(); iter.hasNext(); )
+        for (final PacketListener listener : listeners)
         {
-            ((PacketListener)iter.next()).packetCaptured(event);
+            listener.packetCaptured(event);
         }
     }
 
@@ -157,6 +165,8 @@ public final class JCapSession
         }
     }
 
+    @SuppressWarnings({"ProhibitedExceptionDeclared"})
+    @Override
     protected void finalize() throws Throwable
     {
         super.finalize();

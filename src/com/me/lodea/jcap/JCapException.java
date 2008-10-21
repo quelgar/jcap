@@ -11,6 +11,8 @@ package com.me.lodea.jcap;
 
 public class JCapException extends Exception
 {
+    private static final long serialVersionUID = 1299870000638505751L;
+
 
     public JCapException(final String message)
     {

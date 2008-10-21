@@ -15,9 +15,13 @@ import java.util.EventObject;
 public final class PacketEvent extends EventObject
 {
 
+    private static final long serialVersionUID = -215160235538802312L;
+
+
     private final long timeStamp;
     private final int realLen;
     private final byte[] data;
+
 
     PacketEvent(final Object source, final long timeStamp,
         final int realLen, final byte[] data)
