@@ -1,12 +1,11 @@
-/*
- * $id$
- */
 
 #include "jcap_jni.h"
 #include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #ifndef NDEBUG
 #include <stdio.h>
@@ -85,16 +84,21 @@ void packet_callback(u_char* const charArgs,
 {
     const callback_args* const args = (const callback_args*)charArgs;
     JNIEnv* const env = args->env;
-    const jlong timeStamp = ((jlong)header->ts.tv_sec)*1000L +
-        ((jlong)header->ts.tv_usec)/1000L;
-    const jbyteArray data = (*env)->NewByteArray(env, header->caplen);
-    if (data == NULL)
+    if ((*env)->ExceptionOccurred(env) != NULL)
     {
         return;
     }
-    (*env)->SetByteArrayRegion(env, data, 0, header->caplen, (jbyte*)packet);
+
+    const jlong timeStamp = ((jlong)header->ts.tv_sec)*1000L +
+        ((jlong)header->ts.tv_usec)/1000L;
+    const jobject buffer = (*env)->NewDirectByteBuffer(env, (void*)packet, header->caplen);
+    if (buffer == NULL)
+    {
+        return;
+    }
     const jobject event = (*env)->NewObject(env, args->eventClass,
-        args->eventCtorID, args->jcap, timeStamp, header->len, data);
+        args->eventCtorID, args->jcap, timeStamp, header->len, buffer);
+    (*env)->DeleteLocalRef(env, buffer);
     if (event == NULL)
     {
         return;
@@ -177,9 +181,27 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
             free(self);
             return;
         }
+
+        // set effective user ID to root, which is required to open a live capture
+        uid_t const initial_euid = geteuid();
+        if (seteuid(0) < 0)
+        {
+            free(self);
+            const jclass exClass = (*env)->FindClass(env, "com/me/lodea/jcap/JCapPermissionException");
+            (*env)->ThrowNew(env, exClass, "Root access required for live capture");
+            return;
+        }
         self->handle = pcap_open_live((char*)ifaceName, snaplen, promisc, timeout,
             errorbuf);
+        int const drop_root_result = seteuid(initial_euid);
         (*env)->ReleaseStringUTFChars(env, ifaceString, ifaceName);
+        if (drop_root_result < 0)
+        {
+            free(self);
+            const jclass exClass = (*env)->FindClass(env, "java/lang/IllegalStateException");
+            (*env)->ThrowNew(env, exClass, "Unable to drop root privileges");
+            return;
+        }
     }
     else
     {
@@ -282,7 +304,7 @@ JNIEXPORT jint JNICALL Java_com_me_lodea_jcap_JCapSession_capture
         return -1;
     }
     args.eventCtorID = (*env)->GetMethodID(env, args.eventClass, "<init>",
-        "(Ljava/lang/Object;JI[B)V");
+        "(Lcom/me/lodea/jcap/JCapSession;JILjava/nio/ByteBuffer;)V");
     if (args.eventCtorID == NULL)
     {
         return -1;

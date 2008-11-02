@@ -14,17 +14,17 @@ public class JCapException extends Exception
     private static final long serialVersionUID = 1299870000638505751L;
 
 
-    public JCapException(final String message)
+    protected JCapException(final String message)
     {
         super(message);
     }
 
-    public JCapException(final String message, final Throwable cause)
+    protected JCapException(final String message, final Throwable cause)
     {
         super(message, cause);
     }
 
-    public JCapException(final Throwable cause)
+    protected JCapException(final Throwable cause)
     {
         super(cause);
     }

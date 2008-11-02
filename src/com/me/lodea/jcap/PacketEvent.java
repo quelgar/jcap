@@ -9,27 +9,30 @@
 
 package com.me.lodea.jcap;
 
-import java.util.EventObject;
+import java.nio.ByteBuffer;
 
 
-public final class PacketEvent extends EventObject
+public final class PacketEvent
 {
-
-    private static final long serialVersionUID = -215160235538802312L;
-
 
     private final long timeStamp;
     private final int realLen;
-    private final byte[] data;
+    private final ByteBuffer data;
+    private final JCapSession source;
 
 
-    PacketEvent(final Object source, final long timeStamp,
-        final int realLen, final byte[] data)
+    PacketEvent(final JCapSession source, final long timeStamp,
+        final int realLen, final ByteBuffer data)
     {
-        super(source);
+        this.source = source;
         this.timeStamp = timeStamp;
         this.realLen = realLen;
         this.data = data;
+    }
+
+    public JCapSession getSource()
+    {
+        return source;
     }
 
     public long getTimeStamp()
@@ -44,12 +47,12 @@ public final class PacketEvent extends EventObject
 
     public int getCaptureLength()
     {
-        return data.length;
+        return data.capacity();
     }
 
-    public byte[] getData()
+    public ByteBuffer data()
     {
-        return data;
+        return data.asReadOnlyBuffer();
     }
 
 }

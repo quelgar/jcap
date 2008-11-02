@@ -9,9 +9,6 @@
 
 package com.me.lodea.jcap;
 
-import com.me.lodea.io.StreamEditor;
-import com.me.lodea.io.NullStreamEditor;
-
 import java.net.NetworkInterface;
 import java.util.Collection;
 import java.util.ArrayList;
@@ -53,6 +50,7 @@ public final class JCapSession
 
     public static JCapSession openSession(final NetworkInterface iface,
         final boolean promisc, final int snaplen, final int timeout)
+        throws JCapException
     {
         if (iface == null)
         {
@@ -62,12 +60,13 @@ public final class JCapSession
     }
 
     public static JCapSession openSession(final NetworkInterface iface,
-        final boolean promisc, final int snaplen)
+        final boolean promisc, final int snaplen) throws JCapException
     {
         return openSession(iface, promisc, snaplen, 0);
     }
     
     public static JCapSession openSession(final File dumpFile)
+        throws JCapException
     {
         if (dumpFile == null)
         {
@@ -77,14 +76,18 @@ public final class JCapSession
     }
     
     public static JCapSession openSession(final InputStream in)
-        throws IOException
+        throws IOException, JCapException
     {
         final File tmpDump = File.createTempFile("jcap", "dump");
+        final byte[] buf = new byte[64*1024];
         final OutputStream out = new FileOutputStream(tmpDump);
         try
         {
-            final StreamEditor editor = NullStreamEditor.getStandard();
-            editor.process(in, out);
+            int bytesRead;
+            while ((bytesRead = in.read(buf)) >= 0)
+            {
+                out.write(buf, 0, bytesRead);
+            }
         }
         finally
         {
@@ -111,7 +114,7 @@ public final class JCapSession
 
     private JCapSession(final NetworkInterface iface, final File dumpFile,
         final boolean tmpDumpFile, final boolean promisc,
-        final int snaplen, final int timeout)
+        final int snaplen, final int timeout) throws JCapException
     {
         this.iface = iface;
         this.snaplen = snaplen;
@@ -125,7 +128,7 @@ public final class JCapSession
     }
 
     private native void pcapOpen(final String ifaceName, final String filename,
-        final boolean promisc, final int snaplen, final int timeout);
+        final boolean promisc, final int snaplen, final int timeout) throws JCapException;
 
     public void addPacketListener(final PacketListener listener)
     {
