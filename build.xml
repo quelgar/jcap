@@ -11,6 +11,10 @@
     <property name="launcher.libpath" value="${libjcap.dir}"/>
     <property name="launcher.perms" value="755"/>
 
+    <condition property="windows">
+        <os family="windows"/>
+    </condition>
+
 
     <target name="dist" depends="launcher,jnilib,jar" description="Builds JCap distribution">
 
@@ -25,7 +29,7 @@
         <mkdir dir="out/production/Jcap"/>
         <javac destdir="out/production/Jcap"
                debug="on"
-               debuglevel="lines, vars, source"
+               debuglevel="lines,vars,source"
                deprecation="on"
                target="1.5"
                includeAntRuntime="no"
@@ -67,9 +71,20 @@
             <arg value="native/jcap.c"/>
             <arg line="-lpcap"/>
         </exec>
+        <exec osfamily="Windows" executable="cl" failonerror="true">
+            <arg line="/LD"/>
+            <arg value="/DWIN32"/>
+            <arg value="/I${java.home}\..\include"/>
+            <arg value="/I${java.home}\..\include\win32"/>
+            <arg value="/Iout"/>
+            <arg value="/I${winpcap.dir}\include"/>
+            <arg value="/Fe${libjcap.dir}\jcap.dll"/>
+            <arg value="native\jcap.c"/>
+            <arg value="${winpcap.dir}\lib\wpcap.lib"/>
+        </exec>
     </target>
 
-    <target name="launcher" description="Build native launcher binary">
+    <target name="launcher" depends="launcher-windows" description="Build native launcher binary" unless="windows">
         <mkdir dir="${launcher.dir}"/>
         <exec os="Mac OS X" executable="gcc" failonerror="true">
             <arg line="-Wall -Werror -std=c99"/>
@@ -84,6 +99,11 @@
             <arg line="-framework JavaVM"/>
         </exec>
         <chmod file="${launcher.dir}/jcap" perm="${launcher.perms}"/>
+    </target>
+    
+    <target name="launcher-windows" if="windows">
+        <mkdir dir="${launcher.dir}"/>
+        <copy file="native/jcap.cmd" todir="${launcher.dir}"/>
     </target>
 
 </project>

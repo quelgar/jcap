@@ -58,22 +58,28 @@ static jcap_state* getNativePointer(JNIEnv* const env, jobject const obj)
 
 static jstring getInterfaceString(JNIEnv* const env, jobject const obj)
 {
-    const jclass cl = (*env)->GetObjectClass(env, obj);
-    const jfieldID ifaceID = (*env)->GetFieldID(env, cl, "iface",
+    jclass cl;
+    jfieldID ifaceID;
+    jobject iface;
+    jmethodID getNameID;
+    jstring ifaceString;
+
+    cl = (*env)->GetObjectClass(env, obj);
+    ifaceID = (*env)->GetFieldID(env, cl, "iface",
         "Ljava/net/NetworkInterface;");
     if (ifaceID == NULL)
     {
         return NULL;
     }
-    const jobject iface = (*env)->GetObjectField(env, obj, ifaceID);
-    const jmethodID getNameID = (*env)->GetMethodID(env,
+    iface = (*env)->GetObjectField(env, obj, ifaceID);
+    getNameID = (*env)->GetMethodID(env,
         (*env)->GetObjectClass(env, iface), "getName",
         "()Ljava/lang/String;");
     if (getNameID == NULL)
     {
         return NULL;
     }
-    const jstring ifaceString = (*env)->CallObjectMethod(env, iface, getNameID);
+    ifaceString = (*env)->CallObjectMethod(env, iface, getNameID);
     if ((*env)->ExceptionOccurred(env) != NULL)
     {
         return NULL;
@@ -86,19 +92,22 @@ void packet_callback(u_char* const charArgs,
 {
     const callback_args* const args = (const callback_args*)charArgs;
     JNIEnv* const env = args->env;
+    jlong timeStamp;
+    jobject buffer;
+    jobject event;
+
     if ((*env)->ExceptionOccurred(env) != NULL)
     {
         return;
     }
-
-    const jlong timeStamp = ((jlong)header->ts.tv_sec)*1000L +
+    timeStamp = ((jlong)header->ts.tv_sec)*1000L +
         ((jlong)header->ts.tv_usec)/1000L;
-    const jobject buffer = (*env)->NewDirectByteBuffer(env, (void*)packet, header->caplen);
+    buffer = (*env)->NewDirectByteBuffer(env, (void*)packet, header->caplen);
     if (buffer == NULL)
     {
         return;
     }
-    const jobject event = (*env)->NewObject(env, args->eventClass,
+    event = (*env)->NewObject(env, args->eventClass,
         args->eventCtorID, args->jcap, timeStamp, header->len, buffer);
     (*env)->DeleteLocalRef(env, buffer);
     if (event == NULL)
@@ -118,24 +127,29 @@ JNIEXPORT jobject JNICALL Java_com_me_lodea_jcap_JCapSession_getDefaultInterface
   (JNIEnv* const env, const jclass clazz)
 {
     char errorbuf[PCAP_ERRBUF_SIZE];
-    const char* const dev = pcap_lookupdev(errorbuf);
+    const char* dev;
+    jclass ifaceClass;
+    jmethodID factory;
+    jstring ifaceName;
+    
+    dev = pcap_lookupdev(errorbuf);
     if (dev == NULL)
     {
         throwJCapException(env, errorbuf);
         return NULL;
     }
-    const jclass ifaceClass = (*env)->FindClass(env, "java/net/NetworkInterface");
+    ifaceClass = (*env)->FindClass(env, "java/net/NetworkInterface");
     if (ifaceClass == NULL)
     {
         return NULL;
     }
-    const jmethodID factory = (*env)->GetStaticMethodID(env, ifaceClass,
+    factory = (*env)->GetStaticMethodID(env, ifaceClass,
         "getByName", "(Ljava/lang/String;)Ljava/net/NetworkInterface;");
     if (factory == NULL)
     {
         return NULL;
     }
-    const jstring ifaceName = (*env)->NewStringUTF(env, dev);
+    ifaceName = (*env)->NewStringUTF(env, dev);
     if (ifaceName == NULL)
     {
         return NULL;
@@ -153,17 +167,22 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
   jstring const dumpFileString, jboolean const promisc, jint const snaplen,
   jint const timeout)
 {
-#ifndef NDEBUG
+    jclass cl;
+    jfieldID nativePtrID;
+    jcap_state* self;
+    char errorbuf[PCAP_ERRBUF_SIZE];
+
+#if (!NDEBUG && UNIX)
     setlinebuf(stdout);
 #endif
-    const jclass cl = (*env)->GetObjectClass(env, obj);
-    const jfieldID nativePtrID = (*env)->GetFieldID(env, cl,
+    cl = (*env)->GetObjectClass(env, obj);
+    nativePtrID = (*env)->GetFieldID(env, cl,
         NATIVE_PTR_NAME, "J");
     if (nativePtrID == NULL)
     {
         return;
     }
-    jcap_state* const self = (jcap_state*)malloc(sizeof(jcap_state));
+    self = (jcap_state*)malloc(sizeof(jcap_state));
     if (self == NULL)
     {
         /* out of memory */
@@ -172,8 +191,7 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
         return;
     }
     (*env)->SetLongField(env, obj, nativePtrID, PTR_AS_LONG(self));
-    
-    char errorbuf[PCAP_ERRBUF_SIZE];
+
     if (ifaceString != NULL)
     {
         const char* const ifaceName = (*env)->GetStringUTFChars(env,
@@ -239,40 +257,45 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
 JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_setFilter
   (JNIEnv* const env, const jobject obj, const jstring filter)
 {
-    const jcap_state* self = getNativePointer(env, obj);
+    const jcap_state* self;
+    jstring ifaceString;
+    const char* ifaceName;
+    char errorbuf[PCAP_ERRBUF_SIZE];
+    bpf_u_int32 net;
+    bpf_u_int32 mask;
+    int pcapResult;
+    const char* filterUTF8;
+    struct bpf_program bpfProg;
+
+    self = getNativePointer(env, obj);
     if (self == NULL)
     {
         return;
     }
 
-    const jstring ifaceString = getInterfaceString(env, obj);
+    ifaceString = getInterfaceString(env, obj);
     if (ifaceString == NULL)
     {
         return;
     }
-    const char* const ifaceName = (*env)->GetStringUTFChars(
+    ifaceName = (*env)->GetStringUTFChars(
         env, ifaceString, NULL);
     if (ifaceName == NULL)
     {
         return;
     }
-    char errorbuf[PCAP_ERRBUF_SIZE];
-    bpf_u_int32 net;
-    bpf_u_int32 mask;
-    int pcapResult = pcap_lookupnet((char*)ifaceName, &net, &mask, errorbuf);
+    pcapResult = pcap_lookupnet((char*)ifaceName, &net, &mask, errorbuf);
     (*env)->ReleaseStringUTFChars(env, ifaceString, ifaceName);
     if (pcapResult < 0)
     {
         throwJCapException(env, errorbuf);
         return;
     }
-    const char* const filterUTF8 = (*env)->GetStringUTFChars(
-        env, filter, NULL);
+    filterUTF8 = (*env)->GetStringUTFChars(env, filter, NULL);
     if (filterUTF8 == NULL)
     {
         return;
     }
-    struct bpf_program bpfProg;
     pcapResult = pcap_compile(self->handle, &bpfProg,
         (char*)filterUTF8, 1, mask);
     (*env)->ReleaseStringUTFChars(env, filter, filterUTF8);
@@ -298,13 +321,14 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_setFilter
 JNIEXPORT jint JNICALL Java_com_me_lodea_jcap_JCapSession_capture
   (JNIEnv* const env, jobject const obj, jint const maxPackets)
 {
-    const jcap_state* self = getNativePointer(env, obj);
+    int result;
+    callback_args args;
+    const jcap_state* const self = getNativePointer(env, obj);
     if (self == NULL)
     {
         return -1;
     }
 
-    callback_args args;
     args.env = env;
     args.jcap = obj;
     args.eventClass = (*env)->FindClass(env, "com/me/lodea/jcap/PacketEvent");
@@ -325,7 +349,7 @@ JNIEXPORT jint JNICALL Java_com_me_lodea_jcap_JCapSession_capture
     {
         return -1;
     }
-    const int result = pcap_dispatch(self->handle, maxPackets, packet_callback,
+    result = pcap_dispatch(self->handle, maxPackets, packet_callback,
         (u_char*)&args);
     if (result < 0)
     {
