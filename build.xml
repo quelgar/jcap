@@ -9,10 +9,16 @@
     <property name="launcher.dir" value="${dist.dir}"/>
     <property name="launcher.classpath" value="${dist.dir}/jcap.jar"/>
     <property name="launcher.libpath" value="${libjcap.dir}"/>
+    <property name="launcher.perms" value="755"/>
 
 
     <target name="dist" depends="launcher,jnilib,jar" description="Builds JCap distribution">
 
+    </target>
+
+    <target name="clean" description="Clean all generated files">
+        <delete dir="${dist.dir}"/>
+        <delete dir="out"/>
     </target>
 
     <target name="compile" description="Compile Java sources">
@@ -26,13 +32,19 @@
                source="1.5">
             <src path="src"/>
             <src path="example"/>
+            <compilerarg line="-Xlint"/>
         </javac>
     </target>
 
     <target name="jar" depends="compile" description="Builds jcap.jar">
         <mkdir dir="${dist.dir}"/>
         <jar destfile="${dist.dir}/jcap.jar" basedir="out/production/Jcap"
-             duplicate="fail"/>
+             duplicate="fail">
+            <manifest>
+                <attribute name="Built-By" value="${user.name}"/>
+                <attribute name="Main-Class" value="com.me.lodea.jcap.example.SimpleDump"/>
+            </manifest>
+        </jar>
     </target>
 
     <target name="javah" depends="compile" description="Generate JNI headers">
@@ -70,6 +82,7 @@
             <arg value="native/launch.c"/>
             <arg line="-framework JavaVM"/>
         </exec>
+        <chmod file="${launcher.dir}/jcap" perm="${launcher.perms}"/>
     </target>
 
 </project>
