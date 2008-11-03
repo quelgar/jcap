@@ -9,5 +9,5 @@ fi
 jcapdir=`dirname $0`
 
 sudo java -ea -classpath "$jcapdir/out/production/Jcap" \
-  -Djava.library.path="$jcapdir/out/native" \
+  -Djava.library.path="$jcapdir/out/dist" \
    com.me.lodea.jcap.example.SimpleDump "$1"
