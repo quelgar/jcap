@@ -57,6 +57,7 @@
         <mkdir dir="${libjcap.dir}"/>
         <exec os="Mac OS X" executable="gcc" failonerror="true">
             <arg line="-Wall -Werror -std=c99 -dynamiclib"/>
+            <arg value="-DUNIX"/>
             <arg value="-I"/>
             <arg value="${java.home}/include"/>
             <arg value="-I"/>

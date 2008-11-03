@@ -4,8 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#ifdef UNIX
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #ifndef NDEBUG
 #include <stdio.h>
@@ -182,6 +184,7 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
             return;
         }
 
+#ifdef UNIX
         // set effective user ID to root, which is required to open a live capture
         uid_t const initial_euid = geteuid();
         if (seteuid(0) < 0)
@@ -191,8 +194,12 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
             (*env)->ThrowNew(env, exClass, "Root access required for live capture");
             return;
         }
+#endif
+
         self->handle = pcap_open_live((char*)ifaceName, snaplen, promisc, timeout,
             errorbuf);
+
+#ifdef UNIX
         int const drop_root_result = seteuid(initial_euid);
         (*env)->ReleaseStringUTFChars(env, ifaceString, ifaceName);
         if (drop_root_result < 0)
@@ -202,6 +209,8 @@ JNIEXPORT void JNICALL Java_com_me_lodea_jcap_JCapSession_pcapOpen
             (*env)->ThrowNew(env, exClass, "Unable to drop root privileges");
             return;
         }
+#endif
+
     }
     else
     {
